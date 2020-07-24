@@ -18,7 +18,8 @@ class vulkan_init
 	{
 		uint32_t width;
 		uint32_t height;
-		float a;
+		//float a;
+		uint32_t filterWidth;
 	};
 public:
 	VkInstance instance;
@@ -38,10 +39,11 @@ public:
 	explicit vulkan_init(const std::string& fileName);
 	~vulkan_init() noexcept;
 
-	void bindParameters(VkBuffer &out,const VkBuffer &in,const PushParams &p) const;
+	void bindParameters(VkBuffer &out,const VkBuffer &in, const VkBuffer& mask, const PushParams &p) const;
 	void unbindParameters() const;
 	void run() const;
-	void operator()(VkBuffer& out, const VkBuffer& in, const PushParams& p)const;
+	void operator()(VkBuffer& out, const VkBuffer& in,const VkBuffer& mask, const PushParams& p)const;
 	
 };
+
 
