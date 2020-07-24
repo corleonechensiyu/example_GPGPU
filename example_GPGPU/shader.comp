@@ -2,20 +2,38 @@
 
 layout(local_size_x_id = 0, local_size_y_id = 1) in; // workgroup size defined with specialization constants. On cpp side there is associated SpecializationInfo entry in PipelineShaderStageCreateInfo
 layout(push_constant) uniform Parameters {           // specify push constants. on cpp side its layout is fixed at PipelineLayout, and values are provided via vk::CommandBuffer::pushConstants()
-   uint Width;
-   uint Height;
-	float a;
+   //uint Width;
+   //uint Height;
+	//float a;
+	uint N;
+	uint M;
+	uint filterWidth;
 } params;
 
 layout(std430, binding = 0) buffer lay0 { float arr_y[]; };
 layout(std430, binding = 1) buffer lay1 { float arr_x[]; };
-
+layout(std430, binding = 2) buffer mask { float arr_z[]; };
 void main(){
    // drop threads outside the buffer dimensions.
-   if(params.Width <= gl_GlobalInvocationID.x || params.Height <= gl_GlobalInvocationID.y){
-      return;
-   }
-   const uint id = params.Width*gl_GlobalInvocationID.y + gl_GlobalInvocationID.x; // current offset
-
-   arr_y[id] += params.a*arr_x[id]; // saxpy
+   //if(params.Width <= gl_GlobalInvocationID.x || params.Height <= gl_GlobalInvocationID.y){
+   //   return;
+   //}
+   if(params.M <= gl_GlobalInvocationID.x || params.M <= gl_GlobalInvocationID.y)
+		return;
+		
+   //const uint id = params.Width*gl_GlobalInvocationID.y + gl_GlobalInvocationID.x; // current offset
+   const uint id = params.M*gl_GlobalInvocationID.y + gl_GlobalInvocationID.x;
+   float sum;
+   sum = 0.0;
+   
+	for (int i = 0; i < params.filterWidth; i++)
+    {
+		const uint idxIntpm = params.N*(gl_GlobalInvocationID.y + i)+ gl_GlobalInvocationID.x;
+        for (int j = 0; j < params.filterWidth; j++) 
+        {
+			sum += arr_x[idxIntpm +j] * arr_z[i * params.filterWidth + j];
+        }
+    }
+	arr_y[id] =sum;
+   //arr_y[id] += params.a*arr_x[id]; // saxpy
 }
