@@ -1,5 +1,5 @@
-﻿#include "vulkan_init.h"
-
+#include "vulkan_init.h"
+#define random(x) rand() % (x)
 
 VkBufferUsageFlags update_usage(const VkPhysicalDevice& physicalDevice, VkMemoryPropertyFlags properties, VkBufferUsageFlags usage)
 {
@@ -13,7 +13,6 @@ VkBufferUsageFlags update_usage(const VkPhysicalDevice& physicalDevice, VkMemory
     }
     return usage;
 }
-
 
 void createBuffer(const VkDevice& device, VkBuffer &buffer,uint32_t bufSize, VkBufferUsageFlags usage)
 {
@@ -173,6 +172,19 @@ void copyBuffer(const VkBuffer& src, VkBuffer& dst, const uint32_t size
 
 }
 
+void no_data_staging_buffer(std::vector<float>& hostData, const VkDevice& device, const VkPhysicalDevice& physicalDevice,
+    VkBuffer& srcBuffer, VkBuffer& dstBuffer, VkDeviceMemory& srcMemory, VkDeviceMemory& dstMemory, uint32_t id, uint32_t size) {
+
+    auto usage = update_usage(physicalDevice, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+    auto n_elements = (uint32_t)hostData.size();
+    createBuffer(device, srcBuffer, n_elements * sizeof(float), usage);
+    auto memoryID = selectMemory(physicalDevice, device, srcBuffer, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+    allocMemory(physicalDevice, device, srcBuffer, srcMemory, memoryID);
+    VkResult result = vkBindBufferMemory(device, srcBuffer, srcMemory, 0);
+    CHECK_RESULT(result);
+    dst_buffer(hostData, device, physicalDevice, dstBuffer, dstMemory);
+    copyBuffer(srcBuffer, dstBuffer, size, device, physicalDevice, id);
+}
 void fromHost(std::vector<float>& hostData,const VkDevice &device,const VkPhysicalDevice &physicalDevice,
     VkBuffer &srcBuffer,VkBuffer &dstBuffer,VkDeviceMemory &srcMemory,VkDeviceMemory &dstMemory,uint32_t id,uint32_t size)
 {
@@ -212,22 +224,38 @@ void toHost(std::vector<float>& tohostData, const VkDevice& device, const VkPhys
 }
 int main()
 {
-    const auto width = 90;
-    const auto height = 60;
-    const auto a = 2.0f; // 
-    auto y = std::vector<float>(width * height, 0.71f);
-    auto x = std::vector<float>(width * height, 0.65f);
+
+
+    const int N = 12;
+    const int M = 10;
+    const int filterWidth = 3;
+
+    auto input = std::vector<float>(N * N);
+    for (size_t i = 0; i < input.size(); i++)
+    {
+        input[i] = static_cast<float>(random(5));
+    }
+
+    auto output = std::vector<float>(M * M);
+    auto mask = std::vector<float>(filterWidth* filterWidth, 0.2f);
+
 	vulkan_init f("shader.spv");
+
 
     
     VkDevice fdevice;
     VkPhysicalDevice fphysicalDevice;
-
+    ///================input===================
     VkBuffer x_srcbuffer;
     VkDeviceMemory x_srcmemory;
     VkBuffer x_dstbuffer;
     VkDeviceMemory x_dstmemory;
-    //////==========================================
+    //===============kernel===============
+    VkBuffer mask_srcbuffer;
+    VkDeviceMemory mask_srcmemory;
+    VkBuffer mask_dstbuffer;
+    VkDeviceMemory mask_dstmemory;
+    ///==================output========================
     VkBuffer y_srcbuffer;
     VkDeviceMemory y_srcmemory;
     VkBuffer y_dstbuffer;
@@ -235,21 +263,44 @@ int main()
 
     fdevice = f.device;
     fphysicalDevice = f.physicalDevice;
-    ////数据xy初始化 
-    fromHost(y, fdevice, fphysicalDevice, y_srcbuffer, y_dstbuffer, y_srcmemory, y_dstmemory, f.compute_queue_family_id, static_cast<uint32_t>(y.size() * sizeof(float)));
-    fromHost(x, fdevice, fphysicalDevice, x_srcbuffer, x_dstbuffer, x_srcmemory, x_dstmemory, f.compute_queue_family_id, static_cast<uint32_t>(x.size() * sizeof(float)));
+    ////数据初始化 
+    //输出output矩阵
+    no_data_staging_buffer(output, fdevice, fphysicalDevice, y_srcbuffer, y_dstbuffer, y_srcmemory, y_dstmemory, f.compute_queue_family_id, static_cast<uint32_t>(output.size() * sizeof(float)));
+    //输入input矩阵
+    fromHost(input, fdevice, fphysicalDevice, x_srcbuffer, x_dstbuffer, x_srcmemory, x_dstmemory, f.compute_queue_family_id, static_cast<uint32_t>(input.size() * sizeof(float)));
+    //输入kernel矩阵
+    fromHost(mask, fdevice, fphysicalDevice, mask_srcbuffer, mask_dstbuffer, mask_srcmemory, mask_dstmemory, f.compute_queue_family_id, static_cast<uint32_t>(mask.size() * sizeof(float)));
+    
+
+    
     ///数据绑定
-    f(y_dstbuffer, x_dstbuffer, {width,height,a});
+    f(y_dstbuffer, x_dstbuffer,mask_dstbuffer, {N,M,filterWidth });
+    //f(y_dstbuffer, x_dstbuffer, { width,height });
     //输出数据
     VkBuffer out_buffer;
     VkDeviceMemory out_memory;
 
-    auto out_tst = std::vector<float>(width * height);
+    auto out_tst = std::vector<float>(M * M);
     toHost(out_tst, fdevice, fphysicalDevice, out_buffer, y_dstbuffer, out_memory, y_dstmemory, f.compute_queue_family_id);
 
-    for (size_t i = 0; i < out_tst.size(); i++)
-    {
-        std::cout << out_tst[i] << std::endl;
+    printf("\nArray input:\n");
+    for (int i = 0; i < N; i++) {
+        for (int j = 0; j < N; j++)
+            printf("%.3f\t", input[i * N + j]);
+        printf("\n");
+    }
+
+    printf("\nArray mask:\n");
+    for (int i = 0; i < filterWidth; i++) {
+        for (int j = 0; j < filterWidth; j++)
+            printf("%.3f\t", mask[i * filterWidth + j]);
+        printf("\n");
+    }
+    printf("\nArray output:\n");
+    for (int i = 0; i < M; i++) {
+        for (int j = 0; j < M; j++)
+            printf("%.3f\t", out_tst[i * M + j]);
+        printf("\n");
     }
 
     vkFreeMemory(fdevice, x_srcmemory, nullptr);
@@ -258,14 +309,21 @@ int main()
     vkFreeMemory(fdevice, y_srcmemory, nullptr);
     vkDestroyBuffer(fdevice, y_srcbuffer, nullptr);
 
+    vkFreeMemory(fdevice, mask_srcmemory, nullptr);
+    vkDestroyBuffer(fdevice, mask_srcbuffer, nullptr);
+
     vkFreeMemory(fdevice, x_dstmemory, nullptr);
     vkDestroyBuffer(fdevice, x_dstbuffer, nullptr);
 
     vkFreeMemory(fdevice, y_dstmemory, nullptr);
     vkDestroyBuffer(fdevice, y_dstbuffer, nullptr);
 
+    vkFreeMemory(fdevice, mask_dstmemory, nullptr);
+    vkDestroyBuffer(fdevice, mask_dstbuffer, nullptr);
+
     vkFreeMemory(fdevice, out_memory, nullptr);
     vkDestroyBuffer(fdevice, out_buffer, nullptr);
 
 	return 0;
 }
+
