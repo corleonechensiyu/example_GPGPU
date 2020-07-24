@@ -1,6 +1,7 @@
 #include"vulkan_init.h"
 #include <fstream>
 #include <array>
+#define WORK_GROUP 8
 std::vector<const char*> layers = { "VK_LAYER_KHRONOS_validation" };
 std::vector<const char*> extensions = { VK_EXT_DEBUG_REPORT_EXTENSION_NAME };
 
@@ -47,7 +48,7 @@ vulkan_init::vulkan_init(const std::string& fileName):physicalDevice(VK_NULL_HAN
     VkResult result = vkCreateInstance(&instanceCreateInfo, nullptr, &instance);//1
     CHECK_RESULT(result);
 
-    //º∆À„”–º∏∏ˆGPU
+    //ËÆ°ÁÆóÊúâÂá†‰∏™GPU
     uint32_t numPhysicalDevices = 0;
     result = vkEnumeratePhysicalDevices(instance, &numPhysicalDevices, nullptr);
     CHECK_RESULT(result);
@@ -57,7 +58,7 @@ vulkan_init::vulkan_init(const std::string& fileName):physicalDevice(VK_NULL_HAN
 
     for (const auto& device : physicalDevices)
     {
-        //GPU÷ß≥÷µƒextensions
+        //GPUÊîØÊåÅÁöÑextensions
         uint32_t numExtensions = 0;
         result = vkEnumerateDeviceExtensionProperties(device, nullptr, &numExtensions, nullptr);
         CHECK_RESULT(result);
@@ -67,7 +68,7 @@ vulkan_init::vulkan_init(const std::string& fileName):physicalDevice(VK_NULL_HAN
         /*for (const auto& extension : extensions) {
             std::cout << extension.extensionName << std::endl;
         }*/
-        //»∑∂® π”√µƒGPU
+        //Á°ÆÂÆö‰ΩøÁî®ÁöÑGPU
         uint32_t queueFamilyCount = 0;
         vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
         std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
@@ -82,7 +83,7 @@ vulkan_init::vulkan_init(const std::string& fileName):physicalDevice(VK_NULL_HAN
             i++;
         }
     }
-    //¥Ú”°GPU name
+    //ÊâìÂç∞GPU name
     VkPhysicalDeviceProperties deviceProperties;
     vkGetPhysicalDeviceProperties(physicalDevice, &deviceProperties);
     std::cout << '\n';
@@ -105,7 +106,7 @@ vulkan_init::vulkan_init(const std::string& fileName):physicalDevice(VK_NULL_HAN
     deviceCreateInfo.pQueueCreateInfos = &deviceQueueCreateInfo;
     deviceCreateInfo.enabledLayerCount = (uint32_t)layers.size();
     deviceCreateInfo.ppEnabledLayerNames = layers.data();
-    deviceCreateInfo.enabledExtensionCount = 0;   ///’‚¿Ôø…“‘enabledDeviceExtensions »ÁVK_KHR_SHADER_FLOAT16_INT8_EXTENSION_NAME
+    deviceCreateInfo.enabledExtensionCount = 0;   ///ËøôÈáåÂèØ‰ª•enabledDeviceExtensions Â¶ÇVK_KHR_SHADER_FLOAT16_INT8_EXTENSION_NAME
     deviceCreateInfo.ppEnabledExtensionNames = nullptr;
     deviceCreateInfo.pEnabledFeatures = nullptr;
 
@@ -113,7 +114,7 @@ vulkan_init::vulkan_init(const std::string& fileName):physicalDevice(VK_NULL_HAN
     CHECK_RESULT(result);
 
     //Create Buffer
-    //∂¡»°glsl¥˙¬Î
+    //ËØªÂèñglsl‰ª£Á†Å
     auto ShaderCode = readFile("shader.spv");
     VkShaderModuleCreateInfo shaderModuleCreateInfo;
     shaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
@@ -125,10 +126,10 @@ vulkan_init::vulkan_init(const std::string& fileName):physicalDevice(VK_NULL_HAN
     result = vkCreateShaderModule(device, &shaderModuleCreateInfo, NULL, &shaderModule);//3
     CHECK_RESULT(result);
 
-    //…Ë÷√descriptor set layout (binding )shder.compŒƒº˛¿Ôµƒlayout(binding=)
+    //ËÆæÁΩÆdescriptor set layout (binding )shder.compÊñá‰ª∂ÈáåÁöÑlayout(binding=)
     //layout(std430, binding = 0) buffer lay0 { float arr_y[]; };
     //layout(std430, binding = 1) buffer lay1 { float arr_x[]; };
-    VkDescriptorSetLayoutBinding layoutBinding[2];
+    VkDescriptorSetLayoutBinding layoutBinding[3];
     layoutBinding[0].binding = 0;
     layoutBinding[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;  //TODO VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER  VK_DESCRIPTOR_TYPE_STORAGE_IMAGE
     layoutBinding[0].descriptorCount = 1;
@@ -141,19 +142,25 @@ vulkan_init::vulkan_init(const std::string& fileName):physicalDevice(VK_NULL_HAN
     layoutBinding[1].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
     layoutBinding[1].pImmutableSamplers = nullptr;
 
+    layoutBinding[2].binding = 2;
+    layoutBinding[2].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    layoutBinding[2].descriptorCount = 1;
+    layoutBinding[2].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+    layoutBinding[2].pImmutableSamplers = nullptr;
+
     VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo;
     descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
     descriptorSetLayoutCreateInfo.pNext = nullptr;
     descriptorSetLayoutCreateInfo.flags = 0;
-    descriptorSetLayoutCreateInfo.bindingCount = 2;
+    descriptorSetLayoutCreateInfo.bindingCount = 3;
     descriptorSetLayoutCreateInfo.pBindings = layoutBinding;
 
     result = vkCreateDescriptorSetLayout(device, &descriptorSetLayoutCreateInfo, NULL, &descriptorSetLayout);//4
     CHECK_RESULT(result);
-    ///Œ™’˝‘⁄ π”√µƒÀ˘”–¥Ê¥¢ª∫≥Â«¯∑÷≈‰√Ë ˆ∑˚≥ÿ
+    ///‰∏∫Ê≠£Âú®‰ΩøÁî®ÁöÑÊâÄÊúâÂ≠òÂÇ®ÁºìÂÜ≤Âå∫ÂàÜÈÖçÊèèËø∞Á¨¶Ê±†
     VkDescriptorPoolSize poolSizes;
     poolSizes.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    poolSizes.descriptorCount = 2;
+    poolSizes.descriptorCount = 3;
 
     VkDescriptorPoolCreateInfo descriptorPoolCreateInfo;
     descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -187,13 +194,13 @@ vulkan_init::vulkan_init(const std::string& fileName):physicalDevice(VK_NULL_HAN
     result = vkCreatePipelineCache(device, &cacheCreateInfo, nullptr, &pipelineCache);//7
     CHECK_RESULT(result);
 
-    //push_constant  shader.compŒƒº˛¿Ôµƒ layout(push_constant) uniform Parameters
+    //push_constant  shader.compÊñá‰ª∂ÈáåÁöÑ layout(push_constant) uniform Parameters
     VkPushConstantRange pushConstantRange;
     pushConstantRange.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
     pushConstantRange.offset = 0;
     pushConstantRange.size = sizeof(PushParams);
 
-    // Pipeline layoutΩ´shaderΩ”ø⁄∂®“ÂŒ™“ª◊Èlayout bindings∫Õpush constants°£
+    // Pipeline layoutÂ∞ÜshaderÊé•Âè£ÂÆö‰πâ‰∏∫‰∏ÄÁªÑlayout bindingsÂíåpush constants„ÄÇ
     VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo;
     pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutCreateInfo.pNext = nullptr;
@@ -206,7 +213,7 @@ vulkan_init::vulkan_init(const std::string& fileName):physicalDevice(VK_NULL_HAN
     result = vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, NULL, &pipelineLayout);//8
     CHECK_RESULT(result);
     /// Create compute pipeline consisting of a single stage with compute shader.
-    /// π”√compute shader¥¥Ω®”…µ•∏ˆΩ◊∂Œ◊È≥…µƒº∆À„π‹µ¿°£
+    ///‰ΩøÁî®compute shaderÂàõÂª∫Áî±Âçï‰∏™Èò∂ÊÆµÁªÑÊàêÁöÑËÆ°ÁÆóÁÆ°ÈÅì„ÄÇ
     //Specialization constants specialized here.
     //// specialize constants of the shader 
     ///layout(local_size_x_id = 0, local_size_y_id = 1)
@@ -215,13 +222,13 @@ vulkan_init::vulkan_init(const std::string& fileName):physicalDevice(VK_NULL_HAN
         { { 0, 0, sizeof(int)},
             { 1, 1 * sizeof(int), sizeof(int) }}
     };
-    auto specValues = std::array<int, 2>{16, 16};
+    auto specValues = std::array<int, 2>{WORK_GROUP, WORK_GROUP};
     VkSpecializationInfo specInfo;
     specInfo.mapEntryCount = specEntries.size();
     specInfo.pMapEntries = specEntries.data();
     specInfo.dataSize = specValues.size() * sizeof(int);
     specInfo.pData = specValues.data();
-    //÷∏∂®compute shader stage£¨À¸µƒ»Îø⁄µ„(main)∫Õspecializations
+    //ÊåáÂÆöcompute shader stageÔºåÂÆÉÁöÑÂÖ•Âè£ÁÇπ(main)Âíåspecializations
 
     VkPipelineShaderStageCreateInfo shaderCreateInfo;
     shaderCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -260,7 +267,7 @@ vulkan_init::~vulkan_init() noexcept
     vkDestroyInstance(instance, nullptr);//1
 }
 
-void vulkan_init::bindParameters(VkBuffer& out, const VkBuffer& in, const vulkan_init::PushParams& p) const
+void vulkan_init::bindParameters(VkBuffer& out, const VkBuffer& in, const VkBuffer& mask, const vulkan_init::PushParams& p) const
 {
     VkDescriptorSetAllocateInfo setAllocateInfo;
     setAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
@@ -273,15 +280,18 @@ void vulkan_init::bindParameters(VkBuffer& out, const VkBuffer& in, const vulkan
     VkResult result = vkAllocateDescriptorSets(device, &setAllocateInfo, &descriptorSet);
     CHECK_RESULT(result);
 
-    VkDescriptorBufferInfo bufferDescriptor[2];
+    VkDescriptorBufferInfo bufferDescriptor[3];
     bufferDescriptor[0].buffer = out;
     bufferDescriptor[0].offset = 0;
-    bufferDescriptor[0].range = sizeof(float) * (p.width * p.height);
+    bufferDescriptor[0].range = sizeof(float) * (p.height * p.height);
     bufferDescriptor[1].buffer = in;
     bufferDescriptor[1].offset = 0;
-    bufferDescriptor[1].range = sizeof(float) * (p.width * p.height);
+    bufferDescriptor[1].range = sizeof(float) * (p.width * p.width);
+    bufferDescriptor[2].buffer = mask;
+    bufferDescriptor[2].offset = 0;
+    bufferDescriptor[2].range = sizeof(float) * (p.filterWidth * p.filterWidth);
 
-    VkWriteDescriptorSet writeDescriptorset[2];
+    VkWriteDescriptorSet writeDescriptorset[3];
     writeDescriptorset[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     writeDescriptorset[0].pNext = nullptr;
     writeDescriptorset[0].dstSet = descriptorSet;
@@ -304,8 +314,19 @@ void vulkan_init::bindParameters(VkBuffer& out, const VkBuffer& in, const vulkan
     writeDescriptorset[1].pBufferInfo = &bufferDescriptor[1];
     writeDescriptorset[1].pTexelBufferView = nullptr;
 
-    vkUpdateDescriptorSets(device, 2, writeDescriptorset, 0, nullptr);
-    // ¥”command pool ∑÷≈‰“ª∏ˆcommand buffer
+    writeDescriptorset[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writeDescriptorset[2].pNext = nullptr;
+    writeDescriptorset[2].dstSet = descriptorSet;
+    writeDescriptorset[2].dstBinding = 2;
+    writeDescriptorset[2].dstArrayElement = 0;
+    writeDescriptorset[2].descriptorCount = 1;
+    writeDescriptorset[2].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    writeDescriptorset[2].pImageInfo = nullptr; //TODO
+    writeDescriptorset[2].pBufferInfo = &bufferDescriptor[2];
+    writeDescriptorset[2].pTexelBufferView = nullptr;
+
+    vkUpdateDescriptorSets(device, 3, writeDescriptorset, 0, nullptr);
+    // ‰ªécommand pool ÂàÜÈÖç‰∏Ä‰∏™command buffer
     VkCommandBufferAllocateInfo commandBufferAllocateInfo;
     commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     commandBufferAllocateInfo.pNext = nullptr;
@@ -316,7 +337,7 @@ void vulkan_init::bindParameters(VkBuffer& out, const VkBuffer& in, const vulkan
     
     result = vkAllocateCommandBuffers(device, &commandBufferAllocateInfo, &commandBuffer);
     CHECK_RESULT(result);
-    // ø™ ºΩ´commandsº«¬ºµΩ–¬∑÷≈‰µƒ command buffer÷–°£
+    // ÂºÄÂßãÂ∞ÜcommandsËÆ∞ÂΩïÂà∞Êñ∞ÂàÜÈÖçÁöÑ command buffer‰∏≠„ÄÇ
     VkCommandBufferBeginInfo commandBufferBeginInfo;
     commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     commandBufferBeginInfo.pNext = nullptr;
@@ -325,15 +346,15 @@ void vulkan_init::bindParameters(VkBuffer& out, const VkBuffer& in, const vulkan
 
     result = vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo);
     CHECK_RESULT(result);
-    // ‘⁄dispatch÷Æ«∞∞Û∂®“ª∏ˆpipeline, ∫Õ“ª∏ˆdescriptor set.
-    // »Áπ˚ƒ˙Õ¸º«¡À’‚–©£¨the validation layerΩ´≤ªª·∏¯≥ˆæØ∏Ê°£
+    // Âú®dispatch‰πãÂâçÁªëÂÆö‰∏Ä‰∏™pipeline, Âíå‰∏Ä‰∏™descriptor set.
+    // Â¶ÇÊûúÊÇ®ÂøòËÆ∞‰∫ÜËøô‰∫õÔºåthe validation layerÂ∞Ü‰∏ç‰ºöÁªôÂá∫Ë≠¶Âëä„ÄÇ
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipelineLayout, 0u, 1, &descriptorSet, 0u, NULL);
     vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(p), &p);
 
-    // ∆Ù∂Ø compute pipeline£¨≤¢÷¥––compute shader.
+    // ÂêØÂä® compute pipelineÔºåÂπ∂ÊâßË°åcompute shader.
     // The number of workgroups is specified in the arguments. 
-    vkCmdDispatch(commandBuffer, div_up(p.width, 16), div_up(p.height, 16), 1);
+    vkCmdDispatch(commandBuffer, div_up(p.width, WORK_GROUP), div_up(p.height, WORK_GROUP), 1);
     result = vkEndCommandBuffer(commandBuffer);
     CHECK_RESULT(result);
 }
@@ -346,7 +367,7 @@ void vulkan_init::unbindParameters() const
     /// Allocate descriptor pool for a descriptors to all storage buffer in use
     VkDescriptorPoolSize poolsize;
     poolsize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    poolsize.descriptorCount = 2;
+    poolsize.descriptorCount = 3;
 
     VkDescriptorPoolCreateInfo descriptorpoolCreateInfo;
     descriptorpoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -396,9 +417,9 @@ void vulkan_init::run() const
 
 }
 
-void vulkan_init::operator()(VkBuffer& out, const VkBuffer& in, const vulkan_init::PushParams& p) const
+void vulkan_init::operator()(VkBuffer& out, const VkBuffer& in, const VkBuffer& mask, const vulkan_init::PushParams& p) const
 {
-    bindParameters(out, in, p);
+    bindParameters(out, in,mask, p);
     run();
     unbindParameters();
 }
